@@ -1,6 +1,8 @@
 import chalk from "chalk";
 import { execSync } from "child_process";
 import readline from "readline";
+import { getAPIKey, setAPIKey } from "./config.js";
+import inquirer from "inquirer";
 
 export function sleep(ms) {
     return new Promise(res => setTimeout(res, ms));
@@ -63,5 +65,74 @@ export function hasStagedChanges() {
 }
 
 export function hasUnstagedChanges() {
-    return !!execSync("git diff").toString().trim();
+    const diff = execSync("git diff").toString().trim();
+    const untracked = execSync("git ls-files --others --exclude-standard")
+        .toString()
+        .trim();
+
+    return !!diff || !!untracked;
+}
+
+// 🔑 First-time setup
+export async function ensureAPIKey() {
+    let key = getAPIKey();
+
+    if (!key) {
+        const answer = await inquirer.prompt([
+            {
+                type: "input",
+                name: "apiKey",
+                message: "Enter your GROQ API Key (Get it from https://console.groq.com/keys):"
+            }
+        ]);
+
+        setAPIKey(answer.apiKey);
+        console.log(chalk.green("✅ API Key saved!"));
+        return answer.apiKey;
+    }
+
+    return key;
+}
+
+// ✅ Sync check (no async needed)
+export function isGitRepo() {
+    try {
+        execSync("git rev-parse --is-inside-work-tree", { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// ✅ Reusable guard
+export function ensureGitRepo() {
+    if (!isGitRepo()) {
+        console.log(chalk.red("❌ Not a Git repository. Run 'git init' first."));
+        process.exit(1);
+    }
+}
+
+export function startLoader(textArr) {
+    let i = 0;
+
+    const interval = setInterval(() => {
+        process.stdout.write(`\r${chalk.cyan(textArr[i % textArr.length])}`);
+        i++;
+    }, 400);
+
+    return interval;
+}
+
+export function stopLoader(interval) {
+    clearInterval(interval);
+    process.stdout.write("\r" + " ".repeat(60) + "\r");
+}
+
+export function hasUnpushedCommits() {
+    try {
+        const result = execSync("git log @{u}..HEAD").toString().trim();
+        return !!result;
+    } catch {
+        return false;
+    }
 }

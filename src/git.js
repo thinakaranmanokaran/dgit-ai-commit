@@ -13,7 +13,15 @@ export function gitCommit(message) {
 }
 
 export function gitPush(access, branch) {
-    execSync(`git push ${access == "-o" && "origin " + branch}`, { stdio: "inherit" });
+    let command;
+
+    if (access === "-o") {
+        command = `git push origin ${branch}`;
+    } else {
+        command = `git push ${branch}`;
+    }
+
+    execSync(command, { stdio: "inherit" });
 }
 
 export function getBranches() {

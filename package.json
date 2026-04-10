@@ -1,11 +1,43 @@
 {
-    "name": "git-cm-generator",
+    "name": "dgit-ai-commit",
     "version": "1.0.0",
-    "description": "AI-powered Git commit CLI using GROQ",
+    "description": "AI-powered Git CLI to generate smart commit messages using GROQ. Fast, interactive, and developer-friendly.",
+    "keywords": [
+        "git",
+        "commit",
+        "ai commit",
+        "git commit generator",
+        "commit message tool",
+        "developer tools",
+        "cli",
+        "groq ai",
+        "git automation",
+        "conventional commits"
+    ],
+    "homepage": "https://github.com/thinakaranmanokaran/dgit-ai-commit",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/thinakaranmanokaran/dgit-ai-commit.git"
+    },
+    "bugs": {
+        "url": "https://github.com/thinakaranmanokaran/dgit-ai-commit/issues"
+    },
+    "author": "Thinakaran Manokaran",
+    "license": "MIT",
     "bin": {
-        "dg": "./bin/dg.js"
+        "dg": "bin/dg.js"
     },
     "type": "module",
+    "engines": {
+        "node": ">=18"
+    },
+    "files": [
+        "bin",
+        "src",
+        "components",
+        "public",
+        "README.md"
+    ],
     "dependencies": {
         "axios": "^1.6.0",
         "chalk": "^5.3.0",
