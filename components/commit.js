@@ -6,7 +6,9 @@ import { generateCommitOptions } from "../src/ai.js";
 import { gitAddAll, gitCommit, gitPush, getBranches, gitInit, commitToOwn, hasCommits } from "../src/git.js";
 import { execSync } from "child_process";
 import { formatChoice, listenForF2, VerifyRemoteRepo, hasChanges, hasUnstagedChanges, ensureAPIKey, isGitRepo, ensureGitRepo, startLoader, stopLoader } from "../src/utils.js";
+import enquirer from "enquirer";
 
+const { Input } = enquirer;
 
 export async function commitMessage() {
     const diff = execSync("git diff --cached").toString();
@@ -44,14 +46,13 @@ export async function commitMessage() {
             "Generating commit options.. ",
             "Generating commit options..."
         ];
-
+        
         const loadingInterval = startLoader(loading);
 
+        // async call
         options = await generateCommitOptions(key);
 
         stopLoader(loadingInterval);
-
-        options = await generateCommitOptions(key);
         let currentSelection = options[0];
 
         clearInterval(() => loadingInterval(loading));

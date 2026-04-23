@@ -116,7 +116,9 @@ export function startLoader(textArr) {
     let i = 0;
 
     const interval = setInterval(() => {
-        process.stdout.write(`\r${chalk.cyan(textArr[i % textArr.length])}`);
+        process.stdout.write(
+            `\r${chalk.cyan(textArr[i % textArr.length])}`
+        );
         i++;
     }, 400);
 
