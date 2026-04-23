@@ -184,9 +184,12 @@ export async function commitMessage() {
         if (result.type === "select") {
             const opt = result.data;
 
-            const finalMessage = opt.description
-                ? `${opt.title}\n\n${opt.description}`
-                : opt.title;
+            const description =
+                opt.description && opt.description.trim()
+                    ? opt.description
+                    : "update project files";
+
+            const finalMessage = `${opt.title}\n\n${description}`;
 
             await gitCommit(finalMessage);
             console.log(chalk.green("✅ Commit successful"));
