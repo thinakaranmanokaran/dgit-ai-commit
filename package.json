@@ -1,6 +1,6 @@
 {
     "name": "dgit-ai-commit",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "AI-powered Git CLI to generate smart commit messages using GROQ. Fast, interactive, and developer-friendly.",
     "keywords": [
         "git",
