@@ -9,7 +9,20 @@ export function gitAddAll() {
 }
 
 export function gitCommit(message) {
-    execSync(`git commit -m "${message}"`, { stdio: "inherit" });
+    const [title, ...rest] = message.split("\n\n");
+    const description = rest.join("\n\n");
+
+    if (description) {
+        execSync(
+            `git commit -m "${title}" -m "${description}"`,
+            { stdio: "inherit" }
+        );
+    } else {
+        execSync(
+            `git commit -m "${title}"`,
+            { stdio: "inherit" }
+        );
+    }
 }
 
 export function gitPush(access, branch) {
