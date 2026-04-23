@@ -96,7 +96,6 @@ program.command("push [branch]")
             await commitMessage();
         }
 
-        console.log("Repo :" + VerifyRemoteRepo());
         if (!VerifyRemoteRepo()) {
             console.log(chalk.red("Changes committed but Remote repository cannot be push. U need to add remote repository url. Use 'git remote add origin <url>' to add remote repository."));
         } else {

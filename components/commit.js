@@ -46,7 +46,7 @@ export async function commitMessage() {
             "Generating commit options.. ",
             "Generating commit options..."
         ];
-        
+
         const loadingInterval = startLoader(loading);
 
         // async call
@@ -108,6 +108,13 @@ export async function commitMessage() {
 
                     if (val?.type === "select") {
                         currentSelection = val.data;
+
+                        process.stdout.write(
+                            "\n" +
+                            chalk.gray("Description: ") +
+                            chalk.white(currentSelection.description || "No description") +
+                            "\n"
+                        );
                     }
                 }
             }

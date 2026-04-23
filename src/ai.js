@@ -34,9 +34,9 @@ Format:
 
 Rules:
 - Max 3 options
-- Title < 60 chars
-- Conventional commits
-- No explanation
+- Title must be under 60 chars
+- ALWAYS include a meaningful description (1 short sentence)
+- Use conventional commits
 
 Diff:
 ${diff}
