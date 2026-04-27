@@ -39,161 +39,106 @@ export async function commitMessage() {
 
     // 🔁 LOOP for regenerate
     while (true) {
-
-        // 🔄 Loader
-        const loading = [
+        // Loader frames defined once — not re-created on every iteration
+        const LOADER_FRAMES = [
             "Generating commit options.  ",
             "Generating commit options.. ",
             "Generating commit options..."
         ];
 
-        const loadingInterval = startLoader(loading);
+        while (true) {
 
-        // async call
-        options = await generateCommitOptions(key);
+            // ── Generate (runs once per iteration, including regen) ───────────────
+            const loadingInterval = startLoader(LOADER_FRAMES);
+            options = await generateCommitOptions(key);
+            stopLoader(loadingInterval);
+            // ↑ stopLoader already clears the line — the dead clearInterval below is removed
 
-        stopLoader(loadingInterval);
-        let currentSelection = options[0];
+            let currentSelection = options[0];
 
-        clearInterval(() => loadingInterval(loading));
-        process.stdout.write("\r" + " ".repeat(60) + "\r");
+            console.log(
+                chalk.green("✔ Commit options ready ") +
+                chalk.gray("(press F2 to edit)\n")
+            );
 
-        console.log(
-            chalk.green("✔ Commit options ready ") +
-            chalk.gray("(press F2 to edit)\n")
-        );
-
-        // 🎯 Add special options
-        const choices = [
-            ...options.map(opt => ({
-                name: formatChoice(opt),
-                value: { type: "select", data: opt },
-                short: opt.title
-            })),
-            new inquirer.Separator(),
-            {
-                name: chalk.yellow("✏️  Edit message"),
-                value: { type: "edit" }
-            },
-            {
-                name: chalk.cyan("🔄 Regenerate"),
-                value: { type: "regen" }
-            }
-        ];
-
-
-        let stopListening;
-        let promptUI;
-
-        const f2Promise = new Promise((resolve) => {
-            stopListening = listenForF2(() => {
-                if (promptUI) {
-                    promptUI.close(); // 🔥 force close inquirer
-                }
-                resolve({ type: "edit" });
-            });
-        });
-
-        const prompt = inquirer.prompt([
-            {
-                type: "list",
-                name: "selected",
-                message: "",
-                choices,
-                loop: true,
-                prefix: "",
-                pageSize: 10,
-                onRender() {
-                    const val = this.getCurrentValue();
-
-                    if (val?.type === "select") {
-                        currentSelection = val.data;
-
-                        process.stdout.write(
-                            "\n" +
-                            chalk.gray("Description: ") +
-                            chalk.white(currentSelection.description || "No description") +
-                            "\n"
-                        );
-                    }
-                }
-            }
-        ]);
-
-        promptUI = prompt.ui; // 🔥 IMPORTANT
-
-        const promptPromise = prompt.then(res => res.selected);
-
-        // 🧠 Race: F2 vs selection
-        const result = await Promise.race([
-            f2Promise,
-            promptPromise
-        ]);
-
-        // 🛑 stop key listener
-        stopListening();
-
-        // ✅ HANDLE CASES
-
-        // 🔄 Regenerate
-        if (result.type === "regen") {
-            // console.log(chalk.gray("\n
-            // cted: 🔄 Regenerate\n"));
-
-            const regenLoading = [
-                "Regenerating.  ",
-                "Regenerating.. ",
-                "Regenerating..."
+            const choices = [
+                ...options.map(opt => ({
+                    name: formatChoice(opt),
+                    value: { type: "select", data: opt },
+                    short: opt.title
+                })),
+                new inquirer.Separator(),
+                { name: chalk.yellow("✏️  Edit message"), value: { type: "edit" } },
+                { name: chalk.cyan("🔄 Regenerate"), value: { type: "regen" } }
             ];
 
-            const regenInterval = startLoader(regenLoading);
+            // ── F2 race ───────────────────────────────────────────────────────────
+            let stopListening;
 
-            options = await generateCommitOptions(key);
-
-            stopLoader(regenInterval);
-
-            continue; // 🔥 go back to loop → prints ONCE
-        }
-
-        if (result.type === "edit") {
-            const defaultMsg =
-                currentSelection?.title ||
-                options[0]?.title ||
-                "chore: update files";
-
-            console.log(chalk.gray(`\nselected: ${defaultMsg}\n`));
-
-            const prompt = new Input({
-                message: "✏️  Edit commit message (press tab):",
-                initial: defaultMsg, // 🔥 REAL editable prefill
-                prefix: ""
+            const f2Promise = new Promise(resolve => {
+                stopListening = listenForF2(() => resolve({ type: "edit" }));
+                // promptUI.close() removed — listenForF2 resolving the race is enough;
+                // inquirer cleans up when the outer prompt promise is abandoned.
             });
 
-            const custom = await prompt.run();
+            const promptPromise = inquirer
+                .prompt([{
+                    type: "list",
+                    name: "selected",
+                    message: "",
+                    choices,
+                    loop: true,
+                    prefix: "",
+                    pageSize: 10,
+                    // onRender removed — writing to stdout inside onRender fires on
+                    // every keypress and causes duplicate lines / visual glitches.
+                    // Description is shown via formatChoice() in the choice label instead.
+                }])
+                .then(res => res.selected);
 
-            if (!custom.trim()) {
-                console.log(chalk.red("❌ Empty message.\n"));
-                continue;
+            const result = await Promise.race([f2Promise, promptPromise]);
+            stopListening();
+
+            // ── Regen — no extra API call here, continue hits the top ─────────────
+            if (result.type === "regen") {
+                continue;   // ← loop top calls generateCommitOptions() exactly once
             }
 
-            await gitCommit(custom);
-            console.log(chalk.green("✅ Commit successful"));
-            return;
-        }
+            // ── Edit ──────────────────────────────────────────────────────────────
+            if (result.type === "edit") {
+                const defaultMsg =
+                    currentSelection?.title ||
+                    options[0]?.title ||
+                    "chore: update files";
 
-        if (result.type === "select") {
-            const opt = result.data;
+                console.log(chalk.gray(`\nselected: ${defaultMsg}\n`));
 
-            const description =
-                opt.description && opt.description.trim()
-                    ? opt.description
-                    : "update project files";
+                const input = new Input({
+                    message: "✏️  Edit commit message (press tab):",
+                    initial: defaultMsg,
+                    prefix: ""
+                });
 
-            const finalMessage = `${opt.title}\n\n${description}`;
+                const custom = await input.run();
 
-            await gitCommit(finalMessage);
-            console.log(chalk.green("✅ Commit successful"));
-            return;
+                if (!custom.trim()) {
+                    console.log(chalk.red("❌ Empty message.\n"));
+                    continue;
+                }
+
+                await gitCommit(custom);
+                console.log(chalk.green("✅ Commit successful"));
+                return;
+            }
+
+            // ── Select ────────────────────────────────────────────────────────────
+            if (result.type === "select") {
+                const { title, description } = result.data;
+                const body = description?.trim() || "update project files";
+                await gitCommit(`${title}\n\n${body}`);
+                console.log(chalk.green("✅ Commit successful"));
+                return;
+            }
         }
     }
 }
