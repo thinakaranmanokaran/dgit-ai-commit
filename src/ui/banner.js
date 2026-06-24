@@ -1,3 +1,13 @@
+/**
+ * src/ui/banner.js
+ *
+ * Displays the DGit ASCII banner once per CLI session.
+ *
+ * ⚠️ Moved here verbatim from components/logo.js as part of the
+ * src/commands · src/core · src/ui restructure. The banner art,
+ * colors, and behavior are UNCHANGED — do not edit the glyphs below.
+ */
+
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -93,7 +103,11 @@ function getAuthor() {
     );
 }
 
-// 🚀 Exported function
+/**
+ * Prints the DGit banner exactly once per process (tracked via a
+ * temp file keyed by PID). Never throws — a banner failure must
+ * never block the actual CLI command from running.
+ */
 export function showBannerOnce() {
     try {
         if (!fs.existsSync(SESSION_FILE)) {

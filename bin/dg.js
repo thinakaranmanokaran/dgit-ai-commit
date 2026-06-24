@@ -1,133 +1,116 @@
 #!/usr/bin/env node
 
-import { Command } from "commander";
-import chalk from "chalk";
-import inquirer from "inquirer";
-import { generateCommitOptions } from "../src/ai.js";
-import { gitAddAll, gitCommit, gitPush, getBranches, gitInit, commitToOwn, hasCommits } from "../src/git.js";
-import { getAPIKey, setAPIKey } from "../src/config.js";
-import { execSync } from "child_process";
-import { formatChoice, listenForF2, VerifyRemoteRepo, hasChanges, hasUnstagedChanges, ensureAPIKey, isGitRepo, ensureGitRepo, startLoader, stopLoader, hasStagedChanges, hasUnpushedCommits } from "../src/utils.js";
-import enquirer from "enquirer";
-import { showBannerOnce } from "../components/logo.js";
-import { commitMessage } from "../components/commit.js";
+/**
+ * bin/dg.js — CLI entry point.
+ *
+ * This file used to contain all the business logic inline. It now
+ * only does two things: define commands with Commander, and route
+ * each one to its implementation in src/commands/*. Every action is
+ * wrapped in a try/catch so a failure prints a clean message instead
+ * of a raw Node stack trace (CLAUDE.md roadmap: "Add proper error
+ * boundaries").
+ */
 
-const { Input } = enquirer;
+import { Command } from "commander";
+import { showBannerOnce } from "../src/ui/banner.js";
+import { ensureGitRepo } from "../src/ui/guards.js";
+import { color, icon } from "../src/ui/theme.js";
+
+import { runInit } from "../src/commands/init.js";
+import { runAdd } from "../src/commands/add.js";
+import { runCommit } from "../src/commands/commit.js";
+import { runPush } from "../src/commands/push.js";
+import { runAgent } from "../src/commands/agent.js";
+
 const program = new Command();
 
 program
     .name("dg")
     .description("AI-powered Git CLI")
-    .version("1.0.0");
+    .version("1.1.0")
+    .option("-a, --agent <prompt>", 'Natural language git operations, e.g. dg -a "undo my last commit"');
 
+/** Wraps a command action so any thrown error prints cleanly instead of a raw stack trace. */
+function withErrorBoundary(action) {
+    return async (...args) => {
+        try {
+            await action(...args);
+        } catch (err) {
+            console.log(color.error(`\n${icon.fail} ${err?.message || err}`));
+            process.exitCode = 1;
+        }
+    };
+}
 
 // 📌 INIT
-program.command("init")
+program
+    .command("init")
     .description("Initialize a new Git repository")
-    .action(async () => {
-        if (isGitRepo()) {
-            console.log(chalk.yellow("⚠ Already a Git repository."));
-        } else {
-            await gitInit();
-        }
-        console.log(chalk.green("✔ Git Initiated"));
-    });
+    .action(withErrorBoundary(async () => {
+        showBannerOnce();
+        await runInit();
+    }));
 
 // 📌 ADD
-program.command("add")
+program
+    .command("add")
     .description("Stage all files")
-    .action(async () => {
+    .action(withErrorBoundary(async () => {
         ensureGitRepo();
         showBannerOnce();
-        await gitAddAll();
-        console.log(chalk.green("✔ Files staged"));
-    });
+        await runAdd();
+    }));
 
 // 📌 COMMIT
-program.command("commit")
+program
+    .command("commit")
     .description("Generate AI commit message & commit")
-    .action(async () => {
+    .action(withErrorBoundary(async () => {
         ensureGitRepo();
         showBannerOnce();
-        await commitMessage();
-
-    });
+        await runCommit();
+    }));
 
 // 📌 PUSH
-program.command("push [branch]")
+program
+    .command("push [branch]")
     .description("Commit + Push with AI message")
-    .action(async (branchArg) => {
+    .action(withErrorBoundary(async (branchArg) => {
         ensureGitRepo();
         showBannerOnce();
+        await runPush(branchArg);
+    }));
 
-        //Verify Git add. 
-        if (!hasChanges() && !hasUnpushedCommits()) {
-            console.log(chalk.red("❌ No changes to commit or push."));
+// 📌 AGENT — explicit subcommand form: dg agent "prompt with spaces"
+program
+    .command("agent <prompt...>")
+    .description('AI-powered natural language git operations, e.g. dg agent "undo my last commit"')
+    .action(withErrorBoundary(async (promptParts) => {
+        ensureGitRepo();
+        showBannerOnce();
+        await runAgent(promptParts.join(" "));
+    }));
+
+// 📌 DEFAULT — handles both `dg -a "..."` and bare `dg` (help)
+program.action(
+    withErrorBoundary(async () => {
+        const opts = program.opts();
+
+        if (opts.agent) {
+            ensureGitRepo();
+            showBannerOnce();
+            await runAgent(opts.agent);
             return;
         }
 
-        // 👉 Handle unstaged changes
-        if (hasUnstagedChanges()) {
-            const { addNow } = await inquirer.prompt([
-                {
-                    type: "confirm",
-                    name: "addNow",
-                    message: "Unstaged changes found. Add all files?",
-                    default: true
-                }
-            ]);
+        showBannerOnce();
+        program.help();
+    })
+);
 
-            if (addNow) {
-                await gitAddAll();
-                console.log(chalk.green("✔ Files staged"));
-            } else {
-                console.log(chalk.red("❌ Push aborted."));
-                return;
-            }
-        }
+await program.parseAsync(process.argv);
 
-        // Ensure committed 
-        if (!hasCommits()) {
-            await commitToOwn();
-        }
-
-        //Staged changes not commited 
-        if (hasStagedChanges()) {
-            await commitMessage();
-        }
-
-        if (!VerifyRemoteRepo()) {
-            console.log(chalk.red("Changes committed but Remote repository cannot be push. U need to add remote repository url. Use 'git remote add origin <url>' to add remote repository."));
-        } else {
-            let branch = branchArg;
-
-            if (!branch) {
-                const branches = await getBranches();
-                
-                const answer = await inquirer.prompt([
-                    {
-                        type: "list",
-                        name: "branch",
-                        message: "Select branch:",
-                        choices: branches
-                    }
-                ]);
-                branch = answer.branch;
-                
-                // console.log("Branches:", branches);
-                // console.log("Selected:", branch);
-            }
-            
-            await gitPush("-o", branch);
-
-            console.log(chalk.green(`🚀 Pushed to ${branch}`));
-        }
-    });
-
-// 📌 HELP DEFAULT
-program.action(() => {
-    showBannerOnce();
-    program.help();
-});
-
-program.parse(process.argv);
+// Safety net: some interactive flows (the F2 listener in particular)
+// can leave stdin in a state that would otherwise keep the event loop
+// alive. Exit explicitly now that the command has actually finished.
+process.exit(process.exitCode ?? 0);
